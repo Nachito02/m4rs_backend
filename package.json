@@ -1,0 +1,19 @@
+{
+  "name": "m4rs-backend",
+  "version": "1.0.0",
+  "description": "M4RS ecommerce API",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0",
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "prisma": "^6.0.0"
+  }
+}
