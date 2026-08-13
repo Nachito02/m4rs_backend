@@ -17,6 +17,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// Detrás de Nginx: confiar en el primer proxy para que req.ip sea la IP real
+// del cliente (necesario para que express-rate-limit funcione por usuario).
+app.set("trust proxy", 1);
+
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
 }));

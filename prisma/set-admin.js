@@ -21,7 +21,7 @@ const role = revoke ? "CUSTOMER" : "ADMIN";
 const user = await prisma.user.update({
   where: { email },
   data:  { role },
-  select: { id: true, email: true, firstName: true, lastName: true, role: true },
+  select: { id: true, email: true, name: true, role: true },
 }).catch(() => null);
 
 if (!user) {
@@ -29,5 +29,5 @@ if (!user) {
   process.exit(1);
 }
 
-console.log(`✅  ${user.firstName} ${user.lastName} (${user.email}) → ${user.role}`);
+console.log(`✅  ${user.name} (${user.email}) → ${user.role}`);
 await prisma.$disconnect();
