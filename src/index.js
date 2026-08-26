@@ -41,6 +41,17 @@ const authLimiter = rateLimit({
 app.use("/api/auth/sign-in", authLimiter);
 app.use("/api/auth/sign-up", authLimiter);
 
+// Recuperación: más estricto, cada intento dispara un email a un tercero
+const resetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiados pedidos de recuperación. Intentá de nuevo en una hora." },
+});
+app.use("/api/auth/request-password-reset", resetLimiter);
+app.use("/api/auth/reset-password",         resetLimiter);
+
 // Better Auth maneja sus propias rutas en /api/auth/*
 app.all("/api/auth/*", toNodeHandler(auth));
 
