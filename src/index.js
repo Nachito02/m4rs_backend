@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import multer from "multer";
 import { rateLimit } from "express-rate-limit";
 import { toNodeHandler } from "better-auth/node";
 import { fileURLToPath } from "url";
@@ -11,6 +12,7 @@ import productRoutes from "./routes/products.js";
 import paymentRoutes from "./routes/payments.js";
 import adminRoutes   from "./routes/admin.js";
 import orderRoutes   from "./routes/orders.js";
+import galleryRoutes from "./routes/gallery.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -64,6 +66,21 @@ app.use("/api/products", productRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/admin",    adminRoutes);
 app.use("/api/orders",   orderRoutes);
+app.use("/api/gallery",  galleryRoutes);
+
+// Errores de subida: sin esto el handler global los enmascara como 500
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    const message = err.code === "LIMIT_FILE_SIZE"
+      ? "La imagen supera los 10 MB."
+      : "Error al procesar el archivo.";
+    return res.status(413).json({ error: message });
+  }
+  if (err?.message === "UNSUPPORTED_MEDIA_TYPE") {
+    return res.status(415).json({ error: "Formato no soportado. Usá JPG, PNG, WebP o AVIF." });
+  }
+  next(err);
+});
 
 // Error handler global
 app.use((err, req, res, next) => {

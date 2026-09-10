@@ -1,25 +1,15 @@
 import { Router }      from "express";
-import multer           from "multer";
 import { requireAdmin } from "../middleware/auth.js";
 import cloudinary       from "../lib/cloudinary.js";
 import prisma           from "../lib/prisma.js";
+import { upload, resolveFolder } from "../lib/uploads.js";
+import {
+  cloudinaryPublicId,
+  deleteCloudinaryImages,
+  destroyPublicIds,
+} from "../lib/cloudinaryImages.js";
 
 const router = Router();
-const upload  = multer({ storage: multer.memoryStorage() });
-
-// ── Helpers ───────────────────────────────────────────────
-
-// Extrae el public_id de una URL de Cloudinary para poder borrarla
-function cloudinaryPublicId(url) {
-  if (!url || !url.includes("res.cloudinary.com")) return null;
-  const match = url.match(/\/upload\/(?:v\d+\/)?(.+)\.[^.]+$/);
-  return match ? match[1] : null;
-}
-
-async function deleteCloudinaryImages(urls) {
-  const ids = urls.map(cloudinaryPublicId).filter(Boolean);
-  await Promise.allSettled(ids.map((id) => cloudinary.uploader.destroy(id)));
-}
 
 const productInclude = {
   variants:    { orderBy: { price: "asc" } },
@@ -35,9 +25,11 @@ router.post("/upload", requireAdmin, upload.single("image"), async (req, res, ne
   try {
     if (!req.file) return res.status(400).json({ error: "No se recibió imagen" });
 
+    const folder = resolveFolder(req.body.folder);
+
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { folder: "m4rs/products" },
+        { folder },
         (err, result) => err ? reject(err) : resolve(result)
       );
       stream.end(req.file.buffer);
@@ -229,6 +221,84 @@ router.patch("/orders/:id/status", requireAdmin, async (req, res, next) => {
       data: { status },
     });
     res.json({ order });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Galería (Universo visual) ─────────────────────────────
+
+const galleryOrder = [{ order: "asc" }, { createdAt: "asc" }];
+
+router.get("/gallery", requireAdmin, async (req, res, next) => {
+  try {
+    const images = await prisma.galleryImage.findMany({ orderBy: galleryOrder });
+    res.json({ images });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/gallery", requireAdmin, async (req, res, next) => {
+  try {
+    const { url, publicId } = req.body;
+
+    // Sin validar, un request armado a mano mete cualquier URL externa en el home
+    const prefix = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/`;
+    if (typeof url !== "string" || !url.startsWith(prefix)) {
+      return res.status(400).json({ error: "URL inválida" });
+    }
+
+    // Las nuevas van al final: la galería queda cronológica
+    const last = await prisma.galleryImage.findFirst({
+      orderBy: { order: "desc" },
+      select: { order: true },
+    });
+
+    const image = await prisma.galleryImage.create({
+      data: {
+        url,
+        publicId: typeof publicId === "string" ? publicId : null,
+        order: (last?.order ?? -1) + 1,
+      },
+    });
+
+    res.status(201).json({ image });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Va antes de cualquier /gallery/:id para que Express no lo tome como parámetro
+router.put("/gallery/order", requireAdmin, async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) {
+      return res.status(400).json({ error: "ids inválido" });
+    }
+
+    await prisma.$transaction(
+      ids.map((id, order) => prisma.galleryImage.update({ where: { id }, data: { order } }))
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete("/gallery/:id", requireAdmin, async (req, res, next) => {
+  try {
+    const image = await prisma.galleryImage.findUnique({ where: { id: req.params.id } });
+    if (!image) return res.status(404).json({ error: "Imagen no encontrada" });
+
+    // Primero la fila: si Cloudinary falla no queremos una fila apuntando a nada
+    await prisma.galleryImage.delete({ where: { id: image.id } });
+
+    const publicId = image.publicId ?? cloudinaryPublicId(image.url);
+    if (publicId) destroyPublicIds([publicId]);
+
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

@@ -251,6 +251,21 @@ model Payment {
 }
 
 // ─────────────────────────────────────────────
+// GALLERY (Universo visual)
+// ─────────────────────────────────────────────
+
+model GalleryImage {
+  id        String   @id @default(cuid())
+  url       String
+  publicId  String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([order])
+}
+
+// ─────────────────────────────────────────────
 // DISCOUNTS
 // ─────────────────────────────────────────────
 
